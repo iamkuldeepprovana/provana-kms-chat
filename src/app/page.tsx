@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { marked } from "marked";
+import Typewriter from "../components/Typewriter";
 
 export default function Home() {
   // Chat state
@@ -83,6 +84,7 @@ export default function Home() {
   }, []);
 
   function handleMessage(data: any) {
+    console.log("Received message:", data);
     if (data.session_id !== sessionIdRef.current) return;
     if (data.type === "state_update") {
       setThinking(data.content);
@@ -181,29 +183,50 @@ export default function Home() {
               This is the start of your conversation. Ask me anything.
             </div>
           )}
-          {messages.map((msg, i) =>
-            msg.type === "user" ? (
-              <div
-                key={i}
-                className="p-4 my-2 rounded-xl max-w-lg break-words ml-auto bg-[var(--accent-provana)] text-white message-enter-active"
-              >
-                {msg.content}
-              </div>
-            ) : msg.type === "bot" ? (
-              <div
-                key={i}
-                className="p-4 my-2 rounded-xl max-w-lg break-words mr-auto bg-[var(--background-light)] border border-[var(--border-color)] text-[var(--text-primary)] message-enter-active bot-message-content"
-                dangerouslySetInnerHTML={{ __html: marked.parse(msg.content) }}
-              />
-            ) : (
-              <div
-                key={i}
-                className={`text-center my-3 text-sm italic ${msg.className || ""} message-enter-active`}
-              >
-                {msg.content}
-              </div>
-            )
-          )}
+          {messages.map((msg, i) => {
+            if (msg.type === "user") {
+              return (
+                <div
+                  key={i}
+                  className="p-4 my-2 rounded-xl max-w-lg break-words ml-auto bg-[var(--accent-provana)] text-white message-enter-active"
+                >
+                  {msg.content}
+                </div>
+              );
+            } else if (msg.type === "bot") {
+              // Show typewriter effect for the latest bot message only
+              const isLatestBot =
+                i === messages.length - 1 &&
+                messages.filter((m) => m.type === "bot").length > 0;
+              if (isLatestBot) {
+                return (
+                  <div
+                    key={i}
+                    className="p-4 my-2 rounded-xl max-w-lg break-words mr-auto bg-[var(--background-light)] border border-[var(--border-color)] text-[var(--text-primary)] message-enter-active bot-message-content"
+                  >
+                    <Typewriter text={msg.content} speed={20} />
+                  </div>
+                );
+              } else {
+                return (
+                  <div
+                    key={i}
+                    className="p-4 my-2 rounded-xl max-w-lg break-words mr-auto bg-[var(--background-light)] border border-[var(--border-color)] text-[var(--text-primary)] message-enter-active bot-message-content"
+                    dangerouslySetInnerHTML={{ __html: marked.parse(msg.content) }}
+                  />
+                );
+              }
+            } else {
+              return (
+                <div
+                  key={i}
+                  className={`text-center my-3 text-sm italic ${msg.className || ""} message-enter-active`}
+                >
+                  {msg.content}
+                </div>
+              );
+            }
+          })}
           {thinking && (
             <div className="p-3 my-2 rounded-lg max-w-md break-words mr-auto text-[var(--text-secondary)] message-enter-active thinking-message">
               <span className="font-semibold text-[var(--accent-provana)] mr-2">●</span>
