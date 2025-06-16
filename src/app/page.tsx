@@ -6,13 +6,12 @@ import { useRouter } from "next/navigation";
 
 export default function Home() {
   // Chat state
-  const [messages, setMessages] = useState<any[]>([]);
+  type Message = { type: 'user' | 'bot' | 'system'; content: string; className?: string };
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [clarification, setClarification] = useState<string | null>(null);
   const [thinking, setThinking] = useState<string | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [reconnecting, setReconnecting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'reconnecting' | 'disconnected'>("connected");
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -45,10 +44,10 @@ export default function Home() {
     let reconnectAttempts = 0;
     let shouldReconnect = true;
     function connect() {
-      ws = new WebSocket(`wss://kmsaidev.provana.com/model/ws/chat`);
+      const wsEndpoint = process.env.NEXT_PUBLIC_WS_ENDPOINT || 'wss://kmsaidev.provana.com/model/ws/chat';
+      ws = new WebSocket(wsEndpoint);
       wsRef.current = ws;
       ws.onopen = () => {
-        setConnected(true);
         setConnectionStatus("connected");
         setMessages((msgs) => [
           ...msgs.filter(m => m.type !== "system" || (!m.content.includes("Connection lost") && !m.content.includes("Could not reconnect"))),
@@ -70,7 +69,6 @@ export default function Home() {
         }
       };
       ws.onclose = (event) => {
-        setConnected(false);
         setConnectionStatus("reconnecting");
         setMessages((msgs) => [
           ...msgs.filter(m => m.type !== "system" || (!m.content.includes("Connected to Provana KMS") && !m.content.includes("Could not reconnect"))),
@@ -90,20 +88,26 @@ export default function Home() {
       ws.onerror = () => {
         setIsProcessing(false);
       };
-    }
-    connect();
+    }    connect();
     return () => {
       shouldReconnect = false;
-      ws && ws.close(1000, "Page unloaded");
+      if (ws) {
+        ws.close(1000, "Page unloaded");
+      }
     };
-    // eslint-disable-next-line
   }, []);
+  type MessageData = {
+    session_id: string;
+    type?: 'state_update' | 'answer_token' | 'clarification_needed' | 'end_of_answer';
+    content?: string;
+    error?: string;
+  };
 
-  function handleMessage(data: any) {
+  function handleMessage(data: MessageData) {
     console.log("Received message:", data);
     if (data.session_id !== sessionIdRef.current) return;
     if (data.type === "state_update") {
-      setThinking(data.content);
+      setThinking(data.content || null);
       setTyping(false);
     } else if (data.type === "answer_token") {
       setThinking(null);
@@ -113,16 +117,16 @@ export default function Home() {
         if (last && last.type === "bot") {
           return [
             ...msgs.slice(0, -1),
-            { ...last, content: last.content + data.content },
+            { ...last, content: last.content + (data.content || "") },
           ];
         } else {
-          return [...msgs, { type: "bot", content: data.content }];
+          return [...msgs, { type: "bot", content: data.content || "" }];
         }
       });
     } else if (data.type === "clarification_needed") {
       setThinking(null);
       setTyping(false);
-      setClarification(data.content);
+      setClarification(data.content || null);
       setIsProcessing(true);
     } else if (data.type === "end_of_answer") {
       setThinking(null);
@@ -208,7 +212,7 @@ export default function Home() {
         </div>
       </header>
       {/* Chat Container */}
-      {reconnecting && (
+      {connectionStatus === "reconnecting" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
           <div className="flex flex-col items-center p-8 bg-white rounded-xl shadow-lg">
             <div className="loader mb-4" style={{ width: 40, height: 40, border: '4px solid #ccc', borderTop: '4px solid #0070f3', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />

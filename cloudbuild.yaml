@@ -2,8 +2,7 @@ steps:
   # Step 1: Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
     args: [ 'build', '-t', '${_IMAGE_NAME}', '.' ]
- 
-  # Step 2: Push the Docker image to Google Container Registry
+   # Step 2: Push the Docker image to Google Container Registry
   - name: 'gcr.io/cloud-builders/docker'
     args: [ 'push', '${_IMAGE_NAME}' ]
  
@@ -17,13 +16,11 @@ steps:
           --image '${_IMAGE_NAME}' \
           --platform managed \
           --region us-central1 \
-          --port 8501 \
-          --allow-unauthenticated \
+          --port 3000 \
+          --set-env-vars="NEXT_PUBLIC_WS_ENDPOINT=wss://kmsaidev.provana.com/model/ws/chat" \
+          --allow-unauthenticated
 options:
   logging: CLOUD_LOGGING_ONLY
- 
- 
- 
+
 substitutions:
   _IMAGE_NAME: gcr.io/gen-lang-client-0443511296/kmsaifrontend:latest
-  # ap
