@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { marked } from "marked";
 import Typewriter from "../components/Typewriter";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
   // Chat state
@@ -11,10 +12,14 @@ export default function Home() {
   const [clarification, setClarification] = useState<string | null>(null);
   const [thinking, setThinking] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'reconnecting' | 'disconnected'>("connected");
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const sessionIdRef = useRef<string>("");
   const [typing, setTyping] = useState(false);
+  const [username, setUsername] = useState("");
+  const router = useRouter();
 
   // Generate or get sessionId
   useEffect(() => {
@@ -24,6 +29,14 @@ export default function Home() {
       localStorage.setItem("chatSessionId", sessionId);
     }
     sessionIdRef.current = sessionId;
+  }, []);
+
+  // Get username from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedUsername = localStorage.getItem("username");
+      if (storedUsername) setUsername(storedUsername);
+    }
   }, []);
 
   // WebSocket connection
@@ -36,8 +49,9 @@ export default function Home() {
       wsRef.current = ws;
       ws.onopen = () => {
         setConnected(true);
+        setConnectionStatus("connected");
         setMessages((msgs) => [
-          ...msgs,
+          ...msgs.filter(m => m.type !== "system" || (!m.content.includes("Connection lost") && !m.content.includes("Could not reconnect"))),
           { type: "system", content: "Connected to Provana KMS", className: "text-green-500" },
         ]);
         reconnectAttempts = 0;
@@ -57,8 +71,9 @@ export default function Home() {
       };
       ws.onclose = (event) => {
         setConnected(false);
+        setConnectionStatus("reconnecting");
         setMessages((msgs) => [
-          ...msgs,
+          ...msgs.filter(m => m.type !== "system" || (!m.content.includes("Connected to Provana KMS") && !m.content.includes("Could not reconnect"))),
           { type: "system", content: "Connection lost. Attempting to reconnect...", className: "text-yellow-500" },
         ]);
         setIsProcessing(false);
@@ -66,9 +81,10 @@ export default function Home() {
           setTimeout(connect, 1000 * Math.pow(2, reconnectAttempts++));
         } else if (shouldReconnect) {
           setMessages((msgs) => [
-            ...msgs,
+            ...msgs.filter(m => m.type !== "system" || !m.content.includes("Connection lost")),
             { type: "system", content: "Could not reconnect. Please refresh the page.", className: "text-red-500" },
           ]);
+          setConnectionStatus("disconnected");
         }
       };
       ws.onerror = () => {
@@ -139,8 +155,14 @@ export default function Home() {
       { type: "user", content: input },
     ]);
     setTyping(true);
+    const payload = {
+      session_id: sessionIdRef.current,
+      question: input,
+      predefined_dimensions:  { ClientName: [username] } ,
+    };
+    console.log("Sending message payload:", payload);
     wsRef.current.send(
-      JSON.stringify({ session_id: sessionIdRef.current, question: input, filters: {} })
+      JSON.stringify(payload)
     );
     setInput("");
     setIsProcessing(true);
@@ -162,16 +184,38 @@ export default function Home() {
     setIsProcessing(true);
   }
 
+  function handleLogout() {
+    // Remove the login cookie
+    document.cookie = "isLoggedIn=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+    router.replace("/login");
+  }
+
   return (
     <div className="h-screen flex flex-col">
       {/* Header */}
       <header className="p-4 border-b border-[var(--border-color)]">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-xl font-bold text-white">Provana KMS</h1>
-          <p className="text-sm text-[var(--text-secondary)]">Your Knowledge Management Solution</p>
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <div>
+            <h1 className="text-xl font-bold text-white">Provana KMS</h1>
+            <p className="text-sm text-[var(--text-secondary)]">Your Knowledge Management Solution</p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="ml-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+          >
+            Logout
+          </button>
         </div>
       </header>
       {/* Chat Container */}
+      {reconnecting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="flex flex-col items-center p-8 bg-white rounded-xl shadow-lg">
+            <div className="loader mb-4" style={{ width: 40, height: 40, border: '4px solid #ccc', borderTop: '4px solid #0070f3', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <span className="text-lg font-semibold text-gray-700">Reconnecting...</span>
+          </div>
+        </div>
+      )}
       <div
         id="chat-container"
         ref={chatContainerRef}
@@ -217,12 +261,24 @@ export default function Home() {
                 );
               }
             } else {
+              // System messages (e.g., connection lost, connected)
+              const isReconnecting = connectionStatus === "reconnecting" && msg.content.includes("Connection lost");
+              const isConnected = connectionStatus === "connected" && msg.content.includes("Connected to Provana KMS");
+              if (!isReconnecting && !isConnected) return null;
               return (
                 <div
                   key={i}
                   className={`text-center my-3 text-sm italic ${msg.className || ""} message-enter-active`}
                 >
+                  {isReconnecting && (
+                    <span className="inline-block align-middle mr-2">
+                      <span className="loader" style={{ display: 'inline-block', width: 18, height: 18, border: '3px solid #ccc', borderTop: '3px solid #0070f3', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                    </span>
+                  )}
                   {msg.content}
+                  {isConnected && (
+                    <span className="inline-block align-middle ml-2 text-green-500 font-bold">●</span>
+                  )}
                 </div>
               );
             }
@@ -296,3 +352,10 @@ export default function Home() {
     </div>
   );
 }
+
+/* Add this to your global CSS or in a style tag:
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+*/
