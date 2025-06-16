@@ -20,6 +20,16 @@ export default function Home() {
   const [username, setUsername] = useState("");
   const router = useRouter();
 
+  // Check authentication on client side as well
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isLoggedIn = document.cookie.includes("isLoggedIn=true");
+      if (!isLoggedIn) {
+        router.replace("/login");
+      }
+    }
+  }, [router]);
+
   // Generate or get sessionId
   useEffect(() => {
     let sessionId = localStorage.getItem("chatSessionId");

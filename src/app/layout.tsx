@@ -20,6 +20,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          id="check-auth"
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (window.location.pathname !== '/login') {
+                const isLoggedIn = document.cookie.includes('isLoggedIn=true');
+                if (!isLoggedIn && window.location.pathname !== '/login') {
+                  window.location.href = '/login';
+                }
+              }
+            `,
+          }}
+        />
+      </head>
       <body className={inter.variable + " antialiased"}>{children}</body>
     </html>
   );

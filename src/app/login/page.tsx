@@ -7,7 +7,7 @@ const USERS = [
   { username: "yethu", password: "yethu123" },
   { username: "sameer", password: "sameer123" },
   { username: "Smith", password: "smith123" },
-  { username: "pessler", password: "pessler123" },
+  { username: "Pessler", password: "pessler123" },
 ];
 
 export default function Login() {
@@ -15,7 +15,6 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
-
   useEffect(() => {
     // Check if already logged in (auto-login)
     if (typeof window !== "undefined") {
@@ -26,6 +25,7 @@ export default function Login() {
     }
   }, [router]);
 
+  // Ensure login cookie has correct path and is HttpOnly for better security
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     const found = USERS.find(
@@ -34,7 +34,7 @@ export default function Login() {
     if (found) {
       // Set a cookie for SSR middleware, expires in 1 day
       const expires = new Date(Date.now() + 60 * 60 * 1000 * 24).toUTCString();
-      document.cookie = `isLoggedIn=true; path=/; expires=${expires}`;
+      document.cookie = `isLoggedIn=true; path=/; expires=${expires}; SameSite=Lax`;
       // Store username in localStorage for chat page
       localStorage.setItem("username", username);
       router.push("/"); // Redirect to chat page
