@@ -4,6 +4,7 @@ import { marked } from "marked";
 import Typewriter from "../components/Typewriter";
 import { useRouter } from "next/navigation";
 import { ChatSidebar } from "../components/ChatSidebar";
+import { Menu } from "lucide-react";
 
 export default function Home() {
   // Chat state
@@ -28,6 +29,7 @@ export default function Home() {
   const [selectedSessionId, setSelectedSessionId] = useState<
     string | undefined
   >(undefined);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const userId = "user1"; // Hardcoded user ID for now
   const router = useRouter();
 
@@ -288,11 +290,22 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-row">
+      {!sidebarOpen && (
+        <button
+          className="fixed top-4 left-4 z-50 p-2 rounded-full bg-[var(--background-dark)] text-[var(--accent-provana)] shadow-lg hover:bg-[var(--background-light)] transition"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open Sidebar"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      )}
       <ChatSidebar
         userId={userId}
         selectedSessionId={selectedSessionId}
         onSelectSession={setSelectedSessionId}
         onNewChat={startNewChat}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
       <div className="flex-1 flex flex-col">
         {/* Header */}{" "}
@@ -321,20 +334,7 @@ export default function Home() {
           </div>
         </header>
         {/* Welcome Back Card only when connected, with reduced spacing */}
-        {username && connectionStatus === "connected" && (
-          <div className="flex justify-center items-start pt-4 pb-2">
-            <div className="dashboard-welcome-card">
-              <h2>
-                👋 Welcome Back <span className="highlight">{username}</span>
-              </h2>
-              <p>Ready to start your conversation?</p>
-              {/* <div className="status">
-                <div className="status-dot"></div>
-                Connected to Provana KMS
-              </div> */}
-            </div>
-          </div>
-        )}
+        {/* Moved into chat container below */}
         {/* Chat Container */}
         {connectionStatus === "reconnecting" && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
@@ -362,6 +362,17 @@ export default function Home() {
           className="flex-1 p-6 overflow-y-auto"
         >
           <div className="max-w-4xl mx-auto space-y-6">
+            {username && connectionStatus === "connected" && (
+              <div className="flex justify-center items-start pt-4 pb-2">
+                <div className="dashboard-welcome-card">
+                  <h2>
+                    👋 Welcome Back{" "}
+                    <span className="highlight">{username}</span>
+                  </h2>
+                  <p>Ready to start your conversation?</p>
+                </div>
+              </div>
+            )}
             {messages.length === 0 && (
               <div className="text-center text-[var(--text-secondary)] text-sm my-6">
                 This is the start of your conversation. Ask me anything.
@@ -530,65 +541,3 @@ export default function Home() {
     </div>
   );
 }
-
-/* Add this to your global CSS or in a style tag:
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(-20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in {
-  animation: fade-in 0.8s cubic-bezier(0.4,0,0.2,1) both;
-}
-@keyframes fade-in-slow {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-.animate-fade-in-slow {
-  animation: fade-in-slow 1.5s 0.5s both;
-}
-@keyframes gradient-move {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 100% 50%; }
-}
-.animate-gradient-move {
-  animation: gradient-move 2.5s linear infinite alternate;
-}
-@keyframes message-enter-active {
-  from { opacity: 0; transform: translateY(-20px) scale(0.95); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-.message-enter-active {
-  animation: message-enter-active 0.7s cubic-bezier(0.4,0,0.2,1) both;
-}
-@keyframes fadeInScale {
-  from { transform: scale(0.9); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-.animate-fadeInScale {
-  animation: fadeInScale 1.2s ease-out;
-}
-@keyframes pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.5); opacity: 0.6; }
-}
-.status-dot { animation: pulse 1.4s infinite ease-in-out; }
-@keyframes rotateGlow {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-@keyframes wave {
-  0%, 60%, 100% { transform: rotate(0deg); }
-  10% { transform: rotate(14deg); }
-  20% { transform: rotate(-8deg); }
-  30% { transform: rotate(14deg); }
-  40% { transform: rotate(-4deg); }
-  50% { transform: rotate(10deg); }
-}
-.animate-wave { animation: wave 2s infinite; display: inline-block; }
-.highlight { transition: color 0.3s, text-shadow 0.3s; }
-.highlight:hover { color: #c2bfff !important; text-shadow: 0 0 8px #8a7fff; }
-*/

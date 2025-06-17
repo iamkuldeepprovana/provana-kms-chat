@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Button } from "./ui/button";
-import { Plus, MessageSquare } from "lucide-react";
+import { Plus, MessageSquare, X } from "lucide-react";
 import clsx from "clsx";
 
 interface ChatSession {
@@ -17,6 +17,8 @@ interface ChatSidebarProps {
   selectedSessionId?: string;
   onSelectSession: (sessionId: string) => void;
   onNewChat?: () => void;
+  open?: boolean;
+  onClose?: () => void;
 }
 
 export const ChatSidebar: React.FC<ChatSidebarProps> = ({
@@ -24,6 +26,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   selectedSessionId,
   onSelectSession,
   onNewChat,
+  open = true,
+  onClose,
 }) => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,6 +54,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     fetchSessions();
   }, [userId]);
 
+  if (!open) return null;
+
   /* ────────────────────────────────────────────────────────── */
   /* UI                                                        */
   /* ────────────────────────────────────────────────────────── */
@@ -67,15 +73,28 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         <span className="font-bold text-m tracking-wide text-white">
           Chats
         </span>
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={onNewChat}
-          aria-label="New Chat"
-          className="hover:bg-[var(--accent-provana)]/10"
-        >
-          <Plus className="w-5 h-5 text-[var(--accent-provana)]" />
-        </Button>
+        <div className="flex gap-2 items-center">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onNewChat}
+            aria-label="New Chat"
+            className="hover:bg-[var(--accent-provana)]/10"
+          >
+            <Plus className="w-5 h-5 text-[var(--accent-provana)]" />
+          </Button>
+          {onClose && (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onClose}
+              aria-label="Close Sidebar"
+              className="ml-1"
+            >
+              <X className="w-5 h-5 text-[var(--accent-provana)]" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Chat list */}
