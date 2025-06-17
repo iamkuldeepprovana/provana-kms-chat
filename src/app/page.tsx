@@ -235,6 +235,20 @@ export default function Home() {
     console.log("New chat session started manually with ID:", newSessionId);
   }
 
+  // Cleans markdown links by encoding spaces as %20 in URLs
+  function cleanMarkdownLinks(markdown: string): string {
+    return markdown.replace(
+      /\[([^\]]+)\]\(([^)]+)\)/g,
+      (match, text, url) => {
+        // If the URL contains spaces and is not already encoded
+        if (url.includes(' ') && !(url.startsWith('<') && url.endsWith('>'))) {
+          return `[${text}](${url.replace(/ /g, '%20')})`;
+        }
+        return match;
+      }
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col">
       {/* Header */}      <header className="p-4 border-b border-[var(--border-color)]">
@@ -307,15 +321,14 @@ export default function Home() {
                     key={i}
                     className="p-4 my-2 rounded-xl max-w-lg break-words mr-auto bg-[var(--background-light)] border border-[var(--border-color)] text-[var(--text-primary)] message-enter-active bot-message-content"
                   >
-                    <Typewriter text={msg.content} speed={20} />
+                    <Typewriter text={cleanMarkdownLinks(msg.content)} speed={20} />
                   </div>
                 );
               } else {
                 return (
                   <div                    key={i}
                     className="p-4 my-2 rounded-xl max-w-lg break-words mr-auto bg-[var(--background-light)] border border-[var(--border-color)] text-[var(--text-primary)] message-enter-active bot-message-content"
-                    dangerouslySetInnerHTML={{ __html: marked.parse(msg.content) }}
-
+                    dangerouslySetInnerHTML={{ __html: marked.parse(cleanMarkdownLinks(msg.content)) }}
                   />
                 );
               }
