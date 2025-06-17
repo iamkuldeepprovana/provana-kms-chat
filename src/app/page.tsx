@@ -28,16 +28,23 @@ export default function Home() {
         router.replace("/login");
       }
     }
-  }, [router]);
-
-  // Generate or get sessionId
+  }, [router]);  // Generate a new sessionId on every page load/refresh
   useEffect(() => {
-    let sessionId = localStorage.getItem("chatSessionId");
-    if (!sessionId) {
-      sessionId = crypto.randomUUID();
-      localStorage.setItem("chatSessionId", sessionId);
-    }
+    // Generate a new UUID for each page load
+    const sessionId = crypto.randomUUID();
+    localStorage.setItem("chatSessionId", sessionId);
     sessionIdRef.current = sessionId;
+    
+    // Clear messages when a new session starts
+    setMessages([
+      { 
+        type: "system", 
+        content: "New chat session started", 
+        className: "text-green-500" 
+      }
+    ]);
+    
+    console.log("New chat session created with ID:", sessionId);
   }, []);
 
   // Get username from localStorage
@@ -197,28 +204,66 @@ export default function Home() {
     setInput("");
     setIsProcessing(true);
   }
-
   function handleLogout() {
     // Remove the login cookie
     document.cookie = "isLoggedIn=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
     router.replace("/login");
   }
+  
+  function startNewChat() {
+    // Generate a new session ID
+    const newSessionId = crypto.randomUUID();
+    localStorage.setItem("chatSessionId", newSessionId);
+    sessionIdRef.current = newSessionId;
+    
+    // Clear all messages and start fresh
+    setMessages([
+      { 
+        type: "system", 
+        content: "New chat session started", 
+        className: "text-green-500" 
+      }
+    ]);
+    
+    // Reset state
+    setInput("");
+    setIsProcessing(false);
+    setClarification(null);
+    setThinking(null);
+    setTyping(false);
+    
+    console.log("New chat session started manually with ID:", newSessionId);
+  }
 
   return (
     <div className="h-screen flex flex-col">
-      {/* Header */}
-      <header className="p-4 border-b border-[var(--border-color)]">
+      {/* Header */}      <header className="p-4 border-b border-[var(--border-color)]">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <div>
             <h1 className="text-xl font-bold text-white">Provana KMS</h1>
             <p className="text-sm text-[var(--text-secondary)]">Your Knowledge Management Solution</p>
           </div>
-          <button
-            onClick={handleLogout}
-            className="ml-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
-          >
-            Logout
-          </button>
+          <div className="flex items-center space-x-4">
+            {username && (
+              <div className="text-right mr-2">
+                <p className="text-white font-medium">Welcome back, <span className="text-[var(--accent-provana)] font-bold">{username}</span></p>
+              </div>
+            )}
+            <div className="flex space-x-3">
+              <button
+                onClick={startNewChat}
+                className="px-4 py-2 bg-[var(--accent-provana)] text-white rounded hover:bg-[var(--accent-provana-hover)] transition"
+              >
+                New Chat
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
         </div>
       </header>
       {/* Chat Container */}
@@ -267,10 +312,10 @@ export default function Home() {
                 );
               } else {
                 return (
-                  <div
-                    key={i}
+                  <div                    key={i}
                     className="p-4 my-2 rounded-xl max-w-lg break-words mr-auto bg-[var(--background-light)] border border-[var(--border-color)] text-[var(--text-primary)] message-enter-active bot-message-content"
                     dangerouslySetInnerHTML={{ __html: marked.parse(msg.content) }}
+
                   />
                 );
               }
