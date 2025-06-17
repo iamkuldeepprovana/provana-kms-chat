@@ -144,3 +144,83 @@ body {
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
+
+/* --- Welcome Back Card Styles --- */
+.dashboard-welcome-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 24px 28px;
+  text-align: center;
+  box-shadow: 0 0 18px rgba(140, 140, 255, 0.18);
+  animation: fadeInScale 1.2s ease-out;
+  position: relative;
+  overflow: hidden;
+  min-width: 260px;
+  max-width: 350px;
+}
+.dashboard-welcome-card::before {
+  content: '';
+  position: absolute;
+  width: 150%;
+  height: 150%;
+  background: radial-gradient(circle, rgba(124, 96, 255, 0.15) 0%, transparent 60%);
+  top: -50%;
+  left: -50%;
+  animation: rotateGlow 10s linear infinite;
+  z-index: 0;
+}
+.dashboard-welcome-card * {
+  position: relative;
+  z-index: 1;
+}
+.dashboard-welcome-card h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 0.3rem;
+}
+.dashboard-welcome-card .highlight {
+  color: #8a7fff;
+  transition: color 0.3s ease;
+  cursor: pointer;
+}
+.dashboard-welcome-card .highlight:hover {
+  color: #c2bfff;
+  text-shadow: 0 0 6px #8a7fff;
+}
+.dashboard-welcome-card p {
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0;
+  font-size: 0.95rem;
+}
+.dashboard-welcome-card .status {
+  margin-top: 0.5rem;
+  color: #00ff9d;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dashboard-welcome-card .status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: #00ff9d;
+  margin-right: 7px;
+  animation: pulse 1.4s infinite ease-in-out;
+}
+@keyframes fadeInScale {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.6; }
+}
+@keyframes rotateGlow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+/* --- End Welcome Back Card Styles --- */

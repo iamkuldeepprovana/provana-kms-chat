@@ -68,7 +68,7 @@ export default function Home() {
         setConnectionStatus("connected");
         setMessages((msgs) => [
           ...msgs.filter(m => m.type !== "system" || (!m.content.includes("Connection lost") && !m.content.includes("Could not reconnect"))),
-          { type: "system", content: "Connected to Provana KMS", className: "text-green-500" },
+          { type: "system", content: "", className: "text-green-500" },
         ]);
         reconnectAttempts = 0;
         setIsProcessing(false);
@@ -251,41 +251,47 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col">
-      {/* Header */}      <header className="p-4 border-b border-[var(--border-color)]">
+      {/* Header */}      <header className="p-2 border-b border-[var(--border-color)]">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <div>
-            <h1 className="text-xl font-bold text-white">Provana KMS</h1>
-            <p className="text-sm text-[var(--text-secondary)]">Your Knowledge Management Solution</p>
+            <h1 className="text-lg font-bold text-white">Provana KMS</h1>
+            <p className="text-xs text-[var(--text-secondary)]">Your Knowledge Management Solution</p>
           </div>
-          <div className="flex items-center space-x-4">
-            {username && (
-              <div className="text-right mr-2">
-                <p className="text-white font-medium">Welcome back, <span className="text-[var(--accent-provana)] font-bold">{username}</span></p>
-              </div>
-            )}
-            <div className="flex space-x-3">
-              <button
-                onClick={startNewChat}
-                className="px-4 py-2 bg-[var(--accent-provana)] text-white rounded hover:bg-[var(--accent-provana-hover)] transition"
-              >
-                New Chat
-              </button>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
-              >
-                Logout
-              </button>
-            </div>
+          <div className="flex space-x-2">
+            <button
+              onClick={startNewChat}
+              className="px-3 py-1.5 bg-[var(--accent-provana)] text-white rounded hover:bg-[var(--accent-provana-hover)] transition text-sm"
+            >
+              New Chat
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition text-sm"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </header>
+      {/* Welcome Back Card only when connected, with reduced spacing */}
+      {username && connectionStatus === "connected" && (
+        <div className="flex justify-center items-start pt-4 pb-2">
+          <div className="dashboard-welcome-card">
+            <h2>👋 Welcome Back <span className="highlight">{username}</span></h2>
+            <p>Ready to start your conversation?</p>
+            {/* <div className="status">
+              <div className="status-dot"></div>
+              Connected to Provana KMS
+            </div> */}
+          </div>
+        </div>
+      )}
       {/* Chat Container */}
       {connectionStatus === "reconnecting" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
           <div className="flex flex-col items-center p-8 bg-white rounded-xl shadow-lg">
             <div className="loader mb-4" style={{ width: 40, height: 40, border: '4px solid #ccc', borderTop: '4px solid #0070f3', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <span className="text-lg font-semibold text-gray-700">Reconnecting...</span>
+            <span className="text-lg font-semibold text-gray-700">Attempting to reconnect...</span>
           </div>
         </div>
       )}
@@ -430,4 +436,59 @@ export default function Home() {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.8s cubic-bezier(0.4,0,0.2,1) both;
+}
+@keyframes fade-in-slow {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in-slow {
+  animation: fade-in-slow 1.5s 0.5s both;
+}
+@keyframes gradient-move {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+.animate-gradient-move {
+  animation: gradient-move 2.5s linear infinite alternate;
+}
+@keyframes message-enter-active {
+  from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.message-enter-active {
+  animation: message-enter-active 0.7s cubic-bezier(0.4,0,0.2,1) both;
+}
+@keyframes fadeInScale {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.animate-fadeInScale {
+  animation: fadeInScale 1.2s ease-out;
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.6; }
+}
+.status-dot { animation: pulse 1.4s infinite ease-in-out; }
+@keyframes rotateGlow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes wave {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(14deg); }
+  20% { transform: rotate(-8deg); }
+  30% { transform: rotate(14deg); }
+  40% { transform: rotate(-4deg); }
+  50% { transform: rotate(10deg); }
+}
+.animate-wave { animation: wave 2s infinite; display: inline-block; }
+.highlight { transition: color 0.3s, text-shadow 0.3s; }
+.highlight:hover { color: #c2bfff !important; text-shadow: 0 0 8px #8a7fff; }
 */
