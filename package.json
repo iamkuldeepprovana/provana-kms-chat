@@ -9,6 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@shadcn/ui": "^0.0.4",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.516.0",
     "marked": "^15.0.12",
     "next": "15.3.3",
     "react": "^19.0.0",
