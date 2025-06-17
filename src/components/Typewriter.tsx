@@ -18,7 +18,7 @@ interface TypewriterProps {
   onDone?: () => void;
 }
 
-const Typewriter: React.FC<TypewriterProps> = ({ text, speed = 30, onDone }) => {
+const Typewriter: React.FC<TypewriterProps> = ({ text, speed = 8, onDone }) => {
   const [displayed, setDisplayed] = useState("");
   const indexRef = useRef(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);  useEffect(() => {

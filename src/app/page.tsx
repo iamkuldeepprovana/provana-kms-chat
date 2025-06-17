@@ -273,19 +273,6 @@ export default function Home() {
           </div>
         </div>
       </header>
-      {/* Welcome Back Card only when connected, with reduced spacing */}
-      {username && connectionStatus === "connected" && (
-        <div className="flex justify-center items-start pt-4 pb-2">
-          <div className="dashboard-welcome-card">
-            <h2>👋 Welcome Back <span className="highlight">{username}</span></h2>
-            <p>Ready to start your conversation?</p>
-            {/* <div className="status">
-              <div className="status-dot"></div>
-              Connected to Provana KMS
-            </div> */}
-          </div>
-        </div>
-      )}
       {/* Chat Container */}
       {connectionStatus === "reconnecting" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
@@ -301,6 +288,12 @@ export default function Home() {
         className="flex-1 p-6 overflow-y-auto"
       >
         <div className="max-w-4xl mx-auto space-y-6">
+          {username && connectionStatus === "connected" && (
+            <div className="dashboard-welcome-card my-2 mx-auto">
+              <h2>👋 Welcome Back <span className="highlight">{username}</span></h2>
+              <p>Ready to start your conversation?</p>
+            </div>
+          )}
           {messages.length === 0 && (
             <div className="text-center text-[var(--text-secondary)] text-sm my-6">
               This is the start of your conversation. Ask me anything.
