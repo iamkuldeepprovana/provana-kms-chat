@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { marked } from "marked";
 
+// Configure marked options for proper link rendering
+marked.setOptions({
+  breaks: true,  // Add line breaks
+  gfm: true      // Use GitHub Flavored Markdown
+});
+
 interface TypewriterProps {
   text: string;
   speed?: number; // ms per character
@@ -41,7 +47,7 @@ const Typewriter: React.FC<TypewriterProps> = ({ text, speed = 30, onDone }) => 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
 
-  return <span dangerouslySetInnerHTML={{ __html: marked.parse(displayed) }} />;
+  return <div className="typewriter-content" dangerouslySetInnerHTML={{ __html: marked.parse(displayed) as string }} />;
 };
 
 export default Typewriter;
