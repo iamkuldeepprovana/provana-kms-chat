@@ -3,9 +3,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const USERS = [
-  { username: "kuldeep", password: "kuldeep123" },
-  { username: "yethu", password: "yethu123" },
-  { username: "sameer", password: "sameer123" },
+  { username: "Messerli", password: "Messerli123" },
+  { username: "Gurstel", password: "Gurstel123" },
+  { username: "Weltman", password: "Weltman123" },
   { username: "Smith", password: "smith123" },
   { username: "Pessler", password: "pessler123" },
 ];
