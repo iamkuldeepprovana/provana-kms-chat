@@ -1,0 +1,27 @@
+.markdownContent {
+  width: 100%;
+}
+
+.markdownContent ul {
+  padding-left: 1.5em;
+  list-style-type: disc !important;
+  margin-bottom: 1em;
+  display: block;
+}
+
+.markdownContent ol {
+  padding-left: 1.5em;
+  list-style-type: decimal !important;
+  margin-bottom: 1em;
+  display: block;
+}
+
+.markdownContent li {
+  margin-bottom: 0.5em;
+  display: list-item;
+}
+
+/* Ensure bullet points are visible */
+.markdownContent li::marker {
+  display: inline-block;
+}

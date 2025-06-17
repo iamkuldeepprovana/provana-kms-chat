@@ -1,11 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import { marked } from "marked";
+import styles from "./Typewriter.module.css";
 
-// Configure marked options for proper link rendering
+// Configure marked options for proper markdown rendering
 marked.setOptions({
   breaks: true,  // Add line breaks
   gfm: true      // Use GitHub Flavored Markdown
 });
+
+// Add a custom renderer to handle lists properly
+const renderer = new marked.Renderer();
+marked.use({ renderer });
 
 interface TypewriterProps {
   text: string;
@@ -16,9 +21,7 @@ interface TypewriterProps {
 const Typewriter: React.FC<TypewriterProps> = ({ text, speed = 30, onDone }) => {
   const [displayed, setDisplayed] = useState("");
   const indexRef = useRef(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);  useEffect(() => {
     // If new text is shorter, reset
     if (text.length < displayed.length) {
       setDisplayed("");
@@ -46,8 +49,15 @@ const Typewriter: React.FC<TypewriterProps> = ({ text, speed = 30, onDone }) => 
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
+  // Process the markdown to ensure bullet points are rendered properly
+  const processedHtml = marked.parse(displayed) as string;
 
-  return <div className="typewriter-content" dangerouslySetInnerHTML={{ __html: marked.parse(displayed) as string }} />;
+  return (
+    <div 
+      className={`typewriter-content ${styles.markdownContent}`} 
+      dangerouslySetInnerHTML={{ __html: processedHtml }} 
+    />
+  );
 };
 
 export default Typewriter;
