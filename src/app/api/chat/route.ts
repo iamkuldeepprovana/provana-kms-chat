@@ -23,10 +23,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   await dbConnect();
   const body = await req.json();
-  const { user, title, messages } = body;
-  const sessionId = uuidv4();
+  const { user, title, messages, sessionId } = body;
+  // Use provided sessionId if present, otherwise generate a new one
+  const sessionIdToUse = sessionId || uuidv4();
   const session = await ChatSession.create({
-    sessionId,
+    sessionId: sessionIdToUse,
     user,
     title: title || (messages?.[0]?.content ?? "Untitled"),
     messages: messages || [],

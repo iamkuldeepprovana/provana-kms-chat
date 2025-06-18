@@ -41,15 +41,16 @@ export default function Home() {
       if (!isLoggedIn) {
         router.replace("/login");
       }
-    }  }, [router]); 
-  
+    }
+  }, [router]);
+
   // Generate a new sessionId on every page load/refresh
   useEffect(() => {
     // Generate a new UUID for each page load
     const sessionId = crypto.randomUUID();
     localStorage.setItem("chatSessionId", sessionId);
     sessionIdRef.current = sessionId;
-    
+
     debugMessage(`New chat session initialized with ID: ${sessionId}`);
 
     // Clear messages when a new session starts
@@ -99,7 +100,7 @@ export default function Home() {
         setIsProcessing(false);
       };
       ws.onmessage = (event) => {
-        console.log("WebSocket message received:", event.data);
+        // console.log("WebSocket message received:", event.data);
         try {
           const data = JSON.parse(event.data);
           handleMessage(data);
@@ -169,11 +170,33 @@ export default function Home() {
       | "state_update"
       | "answer_token"
       | "clarification_needed"
+      | "answer"
       | "end_of_answer";
     content?: string;
     error?: string;
-  };  function handleMessage(data: MessageData) {
-    console.log("Received message:", data);
+  };
+  function handleMessage(data: MessageData) {
+    // Store AI answer immediately when received
+    if (data.type === "answer") {
+      console.log("Received full answer:", data.content);
+      // Use sessionIdRef.current if sessionId is not set
+      const sid = sessionId || sessionIdRef.current;
+      const user = currentUser || username;
+      console.log(user, sid, data.content);
+      if (sid && user && data.content) {
+        appendMessage(sid, user, {
+          role: "ai",
+          content: data.content,
+        })
+          .then(() => {
+            console.log("AI answer saved to database");
+            setTimeout(() => storeCompleteChatToMongoDB(), 500);
+          })
+          .catch((err) => console.error("Failed to save AI answer:", err));
+      } else {
+        console.warn("Cannot save AI answer: Missing sessionId, user, or content", { sid, user, content: data.content });
+      }
+    }
     if (data.session_id !== sessionIdRef.current) return;
     if (data.type === "state_update") {
       setThinking(data.content || null);
@@ -196,37 +219,45 @@ export default function Home() {
       setThinking(null);
       setTyping(false);
       setClarification(data.content || null);
-      setIsProcessing(true);    } else if (data.type === "end_of_answer") {
+      setIsProcessing(true);
+    } else if (data.type === "end_of_answer") {
       setThinking(null);
       setTyping(false);
       setIsProcessing(false);
-      
+
       // Get the final bot message
-      const botMessages = messages.filter(m => m.type === "bot");
+      const botMessages = messages.filter((m) => m.type === "bot");
       if (botMessages.length > 0) {
         const lastBotMessage = botMessages[botMessages.length - 1];
-        
+
         // Save the bot's response to MongoDB
         if (sessionId) {
-          console.log("Saving AI response to database:", lastBotMessage.content);
-          appendMessage(sessionId, currentUser, { 
-            role: "ai", 
-            content: lastBotMessage.content 
+          console.log(
+            "Saving AI response to database:",
+            lastBotMessage.content
+          );
+          appendMessage(sessionId, currentUser, {
+            role: "ai",
+            content: lastBotMessage.content,
           })
-          .then(() => {
-            console.log("AI response saved to database");
-            // After individual message is saved, update the entire chat history
-            setTimeout(() => storeCompleteChatToMongoDB(), 500);
-          })
-          .catch(err => console.error("Failed to save AI response:", err));
+            .then(() => {
+              console.log("AI response saved to database");
+              // After individual message is saved, update the entire chat history
+              setTimeout(() => storeCompleteChatToMongoDB(), 500);
+            })
+            .catch((err) => console.error("Failed to save AI response:", err));
         } else {
           console.warn("Cannot save AI response: No active session ID");
         }
       }
-    }else if (data.error) {
+    } else if (data.error) {
       setMessages((msgs) => [
         ...msgs,
-        { type: "system", content: `Error: ${data.error}`, className: "text-red-500" },
+        {
+          type: "system",
+          content: `Error: ${data.error}`,
+          className: "text-red-500",
+        },
       ]);
       setIsProcessing(false);
     }
@@ -331,7 +362,8 @@ export default function Home() {
         content: input,
       });
       setMessages((msgs) => [...msgs, { type: "user", content: input }]);
-      setInput("");      sendMessage(sessionId, input);
+      setInput("");
+      sendMessage(sessionId, input);
     }
   }
 
@@ -341,52 +373,52 @@ export default function Home() {
       console.warn("Cannot store chat: Missing sessionId or user");
       return;
     }
-    
+
     // Convert UI messages to MongoDB format
     const formattedMessages = messages
-      .filter(msg => msg.type === 'user' || msg.type === 'bot') // Only keep user and bot messages
-      .map(msg => ({
-        role: msg.type === 'bot' ? 'ai' : 'user',
-        content: msg.content
+      .filter((msg) => msg.type === "user" || msg.type === "bot") // Only keep user and bot messages
+      .map((msg) => ({
+        role: msg.type === "bot" ? "ai" : "user",
+        content: msg.content,
       }));
-    
+
     // Update the entire session with all messages
-    fetch(`/api/chat?user=${currentUser}&sessionId=${sessionId}`, { 
-      method: 'GET' 
+    fetch(`/api/chat?user=${currentUser}&sessionId=${sessionId}`, {
+      method: "GET",
     })
-    .then(res => res.json())
-    .then(session => {
-      // Only update if we have messages that aren't in the database
-      if (formattedMessages.length > session.messages.length) {
-        console.log("Updating session with all messages:", formattedMessages);
-        
-        // Replace all messages in the session with our complete set
-        fetch('/api/chat/update-all', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId,
-            user: currentUser,
-            messages: formattedMessages
+      .then((res) => res.json())
+      .then((session) => {
+        // Only update if we have messages that aren't in the database
+        if (formattedMessages.length > session.messages.length) {
+          console.log("Updating session with all messages:", formattedMessages);
+
+          // Replace all messages in the session with our complete set
+          fetch("/api/chat/update-all", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId,
+              user: currentUser,
+              messages: formattedMessages,
+            }),
           })
-        })
-        .then(res => {
-          if (res.ok) console.log("Full chat history saved to database");
-          else console.error("Failed to save chat history");
-        })
-        .catch(err => console.error("Error saving chat history:", err));
-      }
-    })
-    .catch(err => console.error("Error checking session:", err));
+            .then((res) => {
+              if (res.ok) console.log("Full chat history saved to database");
+              else console.error("Failed to save chat history");
+            })
+            .catch((err) => console.error("Error saving chat history:", err));
+        }
+      })
+      .catch((err) => console.error("Error checking session:", err));
   }
   function sendMessage(sessionId: string, message: string) {
     if (!wsRef.current || wsRef.current.readyState !== 1) return; // Only send if open
     setTyping(true);
-    
+
     // Ensure we're using the right session ID - the one from sessionId param
     sessionIdRef.current = sessionId;
     debugMessage(`Set current session ID to: ${sessionId}`);
-    
+
     const payload = {
       session_id: sessionId,
       question: message,
@@ -401,11 +433,11 @@ export default function Home() {
     if (!wsRef.current || wsRef.current.readyState !== 1) return; // Only send if open
     setMessages((msgs) => [...msgs, { type: "user", content: input }]);
     setTyping(true);
-    
+
     // Use current sessionId from state, which should match the server's
     const currentSessionId = sessionId || sessionIdRef.current;
     debugMessage(`Sending clarification with session ID: ${currentSessionId}`);
-    
+
     wsRef.current.send(
       JSON.stringify({ session_id: currentSessionId, content: input })
     );
@@ -547,10 +579,11 @@ export default function Home() {
                   >
                     {msg.content}
                   </div>
-                );              } else if (msg.type === "bot") {
+                );
+              } else if (msg.type === "bot") {
                 const isLatestBot =
                   i === messages.length - 1 &&
-                  messages.filter((m) => m.type === "bot").length > 0;                
+                  messages.filter((m) => m.type === "bot").length > 0;
                 if (isLatestBot) {
                   return (
                     <div
@@ -569,7 +602,9 @@ export default function Home() {
                       key={`bot-${i}`}
                       className="p-4 my-2 rounded-xl max-w-lg break-words mr-auto bg-[var(--background-light)] border border-[var(--border-color)] text-[var(--text-primary)] message-enter-active bot-message-content"
                       dangerouslySetInnerHTML={{
-                        __html: marked.parse(cleanMarkdownLinks(msg.content || "")),
+                        __html: marked.parse(
+                          cleanMarkdownLinks(msg.content || "")
+                        ),
                       }}
                     />
                   );
