@@ -32,6 +32,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const userId = "user1"; // Hardcoded user ID for now
   const router = useRouter();
+  const aiResponseRef = useRef("");
 
   // Check authentication on client side as well
   useEffect(() => {
@@ -40,13 +41,16 @@ export default function Home() {
       if (!isLoggedIn) {
         router.replace("/login");
       }
-    }
-  }, [router]); // Generate a new sessionId on every page load/refresh
+    }  }, [router]); 
+  
+  // Generate a new sessionId on every page load/refresh
   useEffect(() => {
     // Generate a new UUID for each page load
     const sessionId = crypto.randomUUID();
     localStorage.setItem("chatSessionId", sessionId);
     sessionIdRef.current = sessionId;
+    
+    debugMessage(`New chat session initialized with ID: ${sessionId}`);
 
     // Clear messages when a new session starts
     setMessages([
@@ -80,6 +84,7 @@ export default function Home() {
       ws = new WebSocket(wsEndpoint);
       wsRef.current = ws;
       ws.onopen = () => {
+        console.log("WebSocket opened");
         setConnectionStatus("connected");
         setMessages((msgs) => [
           ...msgs.filter(
@@ -94,10 +99,12 @@ export default function Home() {
         setIsProcessing(false);
       };
       ws.onmessage = (event) => {
+        console.log("WebSocket message received:", event.data);
         try {
           const data = JSON.parse(event.data);
           handleMessage(data);
-        } catch {
+        } catch (err) {
+          console.error("Failed to parse message", err);
           setMessages((msgs) => [
             ...msgs,
             {
@@ -110,6 +117,7 @@ export default function Home() {
         }
       };
       ws.onclose = (event) => {
+        console.warn("WebSocket closed", event);
         setConnectionStatus("reconnecting");
         setMessages((msgs) => [
           ...msgs.filter(
@@ -142,7 +150,8 @@ export default function Home() {
           setConnectionStatus("disconnected");
         }
       };
-      ws.onerror = () => {
+      ws.onerror = (event) => {
+        console.error("WebSocket error", event);
         setIsProcessing(false);
       };
     }
@@ -163,9 +172,7 @@ export default function Home() {
       | "end_of_answer";
     content?: string;
     error?: string;
-  };
-
-  function handleMessage(data: MessageData) {
+  };  function handleMessage(data: MessageData) {
     console.log("Received message:", data);
     if (data.session_id !== sessionIdRef.current) return;
     if (data.type === "state_update") {
@@ -189,19 +196,37 @@ export default function Home() {
       setThinking(null);
       setTyping(false);
       setClarification(data.content || null);
-      setIsProcessing(true);
-    } else if (data.type === "end_of_answer") {
+      setIsProcessing(true);    } else if (data.type === "end_of_answer") {
       setThinking(null);
       setTyping(false);
       setIsProcessing(false);
-    } else if (data.error) {
+      
+      // Get the final bot message
+      const botMessages = messages.filter(m => m.type === "bot");
+      if (botMessages.length > 0) {
+        const lastBotMessage = botMessages[botMessages.length - 1];
+        
+        // Save the bot's response to MongoDB
+        if (sessionId) {
+          console.log("Saving AI response to database:", lastBotMessage.content);
+          appendMessage(sessionId, currentUser, { 
+            role: "ai", 
+            content: lastBotMessage.content 
+          })
+          .then(() => {
+            console.log("AI response saved to database");
+            // After individual message is saved, update the entire chat history
+            setTimeout(() => storeCompleteChatToMongoDB(), 500);
+          })
+          .catch(err => console.error("Failed to save AI response:", err));
+        } else {
+          console.warn("Cannot save AI response: No active session ID");
+        }
+      }
+    }else if (data.error) {
       setMessages((msgs) => [
         ...msgs,
-        {
-          type: "system",
-          content: `Error: ${data.error}`,
-          className: "text-red-500",
-        },
+        { type: "system", content: `Error: ${data.error}`, className: "text-red-500" },
       ]);
       setIsProcessing(false);
     }
@@ -217,48 +242,69 @@ export default function Home() {
     }
   }, [messages, thinking, typing]);
 
-  function sendMessage() {
-    if (isProcessing || !input.trim()) return;
-    if (!wsRef.current || wsRef.current.readyState !== 1) return; // Only send if open
-    setMessages((msgs) => [...msgs, { type: "user", content: input }]);
-    setTyping(true);
-    const payload = {
-      session_id: sessionIdRef.current,
-      question: input,
-      predefined_dimensions: { ClientName: [username] },
-    };
-    console.log("Sending message payload:", payload);
-    wsRef.current.send(JSON.stringify(payload));
-    setInput("");
-    setIsProcessing(true);
+  // --- Chat session API helpers ---
+  async function createSession(user: string, firstMessage: string) {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({
+        user,
+        title: firstMessage,
+        messages: [{ role: "user", content: firstMessage }],
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+    return res.json();
+  }
+  async function appendMessage(
+    sessionId: string,
+    user: string,
+    message: { role: "user" | "ai"; content: string }
+  ) {
+    const res = await fetch("/api/chat", {
+      method: "PUT",
+      body: JSON.stringify({ sessionId, user, message }),
+      headers: { "Content-Type": "application/json" },
+    });
+    return res.json();
+  }
+  async function getSession(user: string, sessionId: string) {
+    const res = await fetch(`/api/chat?user=${user}&sessionId=${sessionId}`);
+    return res.json();
   }
 
-  function sendClarification() {
-    if (!clarification || !input.trim()) return;
-    if (!wsRef.current || wsRef.current.readyState !== 1) return; // Only send if open
-    setMessages((msgs) => [...msgs, { type: "user", content: input }]);
-    setTyping(true);
-    wsRef.current.send(
-      JSON.stringify({ session_id: sessionIdRef.current, content: input })
-    );
-    setClarification(null);
+  // --- Main Chat logic integration ---
+  // Replace userId with username from localStorage
+  const [currentUser, setCurrentUser] = useState<string>("");
+  useEffect(() => {
+    const storedUsername = localStorage.getItem("username");
+    if (storedUsername) setCurrentUser(storedUsername);
+  }, []);
+  // --- Chat session state ---
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
+  // --- Load session when selected ---
+  useEffect(() => {
+    if (currentUser && selectedSessionId) {
+      getSession(currentUser, selectedSessionId).then((session) => {
+        setSessionId(session.sessionId);
+        setMessages(
+          session.messages.map((m: any) => ({
+            type: m.role === "ai" ? "bot" : "user",
+            content: m.content,
+          }))
+        );
+      });
+    }
+  }, [currentUser, selectedSessionId]);
+  // --- New Chat handler ---
+  async function handleNewChat() {
+    setSessionId(undefined);
+    setSelectedSessionId(undefined);
+    setMessages([]);
     setInput("");
-    setIsProcessing(true);
-  }
-  function handleLogout() {
-    // Remove the login cookie
-    document.cookie =
-      "isLoggedIn=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    router.replace("/login");
-  }
-
-  function startNewChat() {
     // Generate a new session ID
     const newSessionId = crypto.randomUUID();
     localStorage.setItem("chatSessionId", newSessionId);
     sessionIdRef.current = newSessionId;
-
-    // Clear all messages and start fresh
     setMessages([
       {
         type: "system",
@@ -266,15 +312,106 @@ export default function Home() {
         className: "text-green-500",
       },
     ]);
+  }
 
-    // Reset state
-    setInput("");
-    setIsProcessing(false);
+  // --- Send message handler ---
+  async function handleSendMessage() {
+    if (!input.trim() || isProcessing) return;
+    if (!sessionId) {
+      // First message, create session
+      const session = await createSession(currentUser, input);
+      setSessionId(session.sessionId);
+      setSelectedSessionId(session.sessionId);
+      setMessages([{ type: "user", content: input }]);
+      setInput("");
+      sendMessage(session.sessionId, input);
+    } else {
+      await appendMessage(sessionId, currentUser, {
+        role: "user",
+        content: input,
+      });
+      setMessages((msgs) => [...msgs, { type: "user", content: input }]);
+      setInput("");      sendMessage(sessionId, input);
+    }
+  }
+
+  // Store the current chat state in MongoDB after each message exchange
+  function storeCompleteChatToMongoDB() {
+    if (!sessionId || !currentUser) {
+      console.warn("Cannot store chat: Missing sessionId or user");
+      return;
+    }
+    
+    // Convert UI messages to MongoDB format
+    const formattedMessages = messages
+      .filter(msg => msg.type === 'user' || msg.type === 'bot') // Only keep user and bot messages
+      .map(msg => ({
+        role: msg.type === 'bot' ? 'ai' : 'user',
+        content: msg.content
+      }));
+    
+    // Update the entire session with all messages
+    fetch(`/api/chat?user=${currentUser}&sessionId=${sessionId}`, { 
+      method: 'GET' 
+    })
+    .then(res => res.json())
+    .then(session => {
+      // Only update if we have messages that aren't in the database
+      if (formattedMessages.length > session.messages.length) {
+        console.log("Updating session with all messages:", formattedMessages);
+        
+        // Replace all messages in the session with our complete set
+        fetch('/api/chat/update-all', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            user: currentUser,
+            messages: formattedMessages
+          })
+        })
+        .then(res => {
+          if (res.ok) console.log("Full chat history saved to database");
+          else console.error("Failed to save chat history");
+        })
+        .catch(err => console.error("Error saving chat history:", err));
+      }
+    })
+    .catch(err => console.error("Error checking session:", err));
+  }
+  function sendMessage(sessionId: string, message: string) {
+    if (!wsRef.current || wsRef.current.readyState !== 1) return; // Only send if open
+    setTyping(true);
+    
+    // Ensure we're using the right session ID - the one from sessionId param
+    sessionIdRef.current = sessionId;
+    debugMessage(`Set current session ID to: ${sessionId}`);
+    
+    const payload = {
+      session_id: sessionId,
+      question: message,
+      predefined_dimensions: { ClientName: [currentUser] },
+    };
+    console.log("Sending message payload:", payload);
+    wsRef.current.send(JSON.stringify(payload));
+    setIsProcessing(true);
+  }
+  function sendClarification() {
+    if (!clarification || !input.trim()) return;
+    if (!wsRef.current || wsRef.current.readyState !== 1) return; // Only send if open
+    setMessages((msgs) => [...msgs, { type: "user", content: input }]);
+    setTyping(true);
+    
+    // Use current sessionId from state, which should match the server's
+    const currentSessionId = sessionId || sessionIdRef.current;
+    debugMessage(`Sending clarification with session ID: ${currentSessionId}`);
+    
+    wsRef.current.send(
+      JSON.stringify({ session_id: currentSessionId, content: input })
+    );
     setClarification(null);
-    setThinking(null);
-    setTyping(false);
-
-    console.log("New chat session started manually with ID:", newSessionId);
+    setInput("");
+    setIsProcessing(true);
   }
 
   // Cleans markdown links by encoding spaces as %20 in URLs
@@ -286,6 +423,25 @@ export default function Home() {
       }
       return match;
     });
+  }
+
+  function debugMessage(message: string) {
+    console.log(message);
+    // Also display in UI for debugging
+    setMessages((msgs) => [
+      ...msgs,
+      {
+        type: "system",
+        content: `DEBUG: ${message}`,
+        className: "text-purple-500",
+      },
+    ]);
+  }
+
+  // Helper function to dump the current messages state to console
+  function dumpMessages() {
+    console.log("Current messages:", messages);
+    console.log("aiResponseRef.current:", aiResponseRef.current);
   }
 
   return (
@@ -300,10 +456,10 @@ export default function Home() {
         </button>
       )}
       <ChatSidebar
-        userId={userId}
+        user={currentUser}
         selectedSessionId={selectedSessionId}
         onSelectSession={setSelectedSessionId}
-        onNewChat={startNewChat}
+        onNewChat={handleNewChat}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -319,13 +475,17 @@ export default function Home() {
             </div>
             <div className="flex space-x-2">
               <button
-                onClick={startNewChat}
+                onClick={handleNewChat}
                 className="px-3 py-1.5 bg-[var(--accent-provana)] text-white rounded hover:bg-[var(--accent-provana-hover)] transition text-sm"
               >
                 New Chat
               </button>
               <button
-                onClick={handleLogout}
+                onClick={() => {
+                  document.cookie =
+                    "isLoggedIn=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+                  router.replace("/login");
+                }}
                 className="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition text-sm"
               >
                 Logout
@@ -387,16 +547,14 @@ export default function Home() {
                   >
                     {msg.content}
                   </div>
-                );
-              } else if (msg.type === "bot") {
-                // Show typewriter effect for the latest bot message only
+                );              } else if (msg.type === "bot") {
                 const isLatestBot =
                   i === messages.length - 1 &&
-                  messages.filter((m) => m.type === "bot").length > 0;
+                  messages.filter((m) => m.type === "bot").length > 0;                
                 if (isLatestBot) {
                   return (
                     <div
-                      key={i}
+                      key={`bot-${i}`}
                       className="p-4 my-2 rounded-xl max-w-lg break-words mr-auto bg-[var(--background-light)] border border-[var(--border-color)] text-[var(--text-primary)] message-enter-active bot-message-content"
                     >
                       <Typewriter
@@ -408,10 +566,10 @@ export default function Home() {
                 } else {
                   return (
                     <div
-                      key={i}
+                      key={`bot-${i}`}
                       className="p-4 my-2 rounded-xl max-w-lg break-words mr-auto bg-[var(--background-light)] border border-[var(--border-color)] text-[var(--text-primary)] message-enter-active bot-message-content"
                       dangerouslySetInnerHTML={{
-                        __html: marked.parse(cleanMarkdownLinks(msg.content)),
+                        __html: marked.parse(cleanMarkdownLinks(msg.content || "")),
                       }}
                     />
                   );
@@ -424,7 +582,8 @@ export default function Home() {
                 const isConnected =
                   connectionStatus === "connected" &&
                   msg.content.includes("Connected to Provana KMS");
-                if (!isReconnecting && !isConnected) return null;
+                if (!isReconnecting && !isConnected && !msg.content)
+                  return null;
                 return (
                   <div
                     key={i}
@@ -515,14 +674,14 @@ export default function Home() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) sendMessage();
+                  if (e.key === "Enter" && !e.shiftKey) handleSendMessage();
                 }}
                 disabled={isProcessing}
               />
               <button
                 className="p-3 bg-[var(--accent-provana)] text-white rounded-full hover:bg-[var(--accent-provana-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-provana)] focus:ring-offset-2 focus:ring-offset-[var(--background-dark)] disabled:bg-gray-600 disabled:cursor-not-allowed transition-all transform active:scale-90"
                 type="button"
-                onClick={sendMessage}
+                onClick={handleSendMessage}
                 disabled={isProcessing}
               >
                 <svg

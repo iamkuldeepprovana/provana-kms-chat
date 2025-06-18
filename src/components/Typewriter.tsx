@@ -21,34 +21,36 @@ interface TypewriterProps {
 const Typewriter: React.FC<TypewriterProps> = ({ text, speed = 30, onDone }) => {
   const [displayed, setDisplayed] = useState("");
   const indexRef = useRef(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);  useEffect(() => {
-    // If new text is shorter, reset
-    if (text.length < displayed.length) {
-      setDisplayed("");
-      indexRef.current = 0;
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Reset if text changes
+    setDisplayed("");
+    indexRef.current = 0;
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
-    // If new text is longer, animate the new part
-    if (text.length > displayed.length && !intervalRef.current) {
-      intervalRef.current = setInterval(() => {
-        setDisplayed((prev) => {
-          const next = text.slice(0, prev.length + 1);
-          if (next.length === text.length) {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            intervalRef.current = null;
-            if (onDone) onDone();
-          }
-          return next;
-        });
-      }, speed);
-    }
+    if (!text) return;
+    intervalRef.current = setInterval(() => {
+      setDisplayed((prev) => {
+        const next = text.slice(0, prev.length + 1);
+        if (next.length === text.length) {
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          intervalRef.current = null;
+          if (onDone) onDone();
+        }
+        return next;
+      });
+    }, speed);
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
+  }, [text, speed, onDone]);
+
   // Process the markdown to ensure bullet points are rendered properly
   const processedHtml = marked.parse(displayed) as string;
 

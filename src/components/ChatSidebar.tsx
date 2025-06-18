@@ -6,14 +6,15 @@ import { Plus, MessageSquare, X } from "lucide-react";
 import clsx from "clsx";
 
 interface ChatSession {
-  id: string;
+  id?: string; // for legacy fallback
+  sessionId?: string; // for MongoDB sessions
   title?: string;
   firstMessage?: string;
   createdAt?: string;
 }
 
 interface ChatSidebarProps {
-  userId: string;
+  user: string;
   selectedSessionId?: string;
   onSelectSession: (sessionId: string) => void;
   onNewChat?: () => void;
@@ -22,7 +23,7 @@ interface ChatSidebarProps {
 }
 
 export const ChatSidebar: React.FC<ChatSidebarProps> = ({
-  userId,
+  user,
   selectedSessionId,
   onSelectSession,
   onNewChat,
@@ -41,18 +42,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/chat/sessions?userId=${userId}`);
+        const res = await fetch(`/api/chat?user=${user}`);
         if (!res.ok) throw new Error("Failed to fetch sessions");
         const data = await res.json();
-        setSessions(data.sessions || []);
+        setSessions(data || []);
       } catch (err: any) {
         setError(err.message || "Unknown error");
       } finally {
         setLoading(false);
       }
     };
-    fetchSessions();
-  }, [userId]);
+    if (user) fetchSessions();
+  }, [user]);
 
   if (!open) return null;
 
@@ -110,39 +111,43 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                 No chats found.
               </li>
             ) : (
-              sessions.map((session) => (
-                <li
-                  key={session.id}
-                  onClick={() => onSelectSession(session.id)}
-                  className={clsx(
-                    "p-4 rounded-xl max-w-xs mx-auto flex items-center gap-3 cursor-pointer transition-all border-l-4",
-                    selectedSessionId === session.id
-                      ? "bg-[var(--accent-provana)] text-white border-[var(--accent-provana)] shadow-lg"
-                      : "bg-[var(--background-dark)] text-[var(--text-secondary)] hover:bg-[var(--background-light)]/5 border-transparent"
-                  )}
-                >
-                  <MessageSquare
+              sessions.map((session) => {
+                const key = session.sessionId || session.id || "unknown";
+                const sessionKey = session.sessionId || session.id || "";
+                return (
+                  <li
+                    key={key}
+                    onClick={() => onSelectSession(sessionKey)}
                     className={clsx(
-                      "w-5 h-5 flex-shrink-0",
-                      selectedSessionId === session.id
-                        ? "text-white"
-                        : "text-[var(--accent-provana)]"
+                      "p-4 rounded-xl max-w-xs mx-auto flex items-center gap-3 cursor-pointer transition-all border-l-4",
+                      selectedSessionId === sessionKey
+                        ? "bg-[var(--accent-provana)] text-white border-[var(--accent-provana)] shadow-lg"
+                        : "bg-[var(--background-dark)] text-[var(--text-secondary)] hover:bg-[var(--background-light)]/5 border-transparent"
                     )}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate font-medium">
-                      {session.title ||
-                        session.firstMessage ||
-                        "Untitled Chat"}
-                    </div>
-                    {session.createdAt && (
-                      <div className="text-xs text-gray-400">
-                        {new Date(session.createdAt).toLocaleDateString()}
+                  >
+                    <MessageSquare
+                      className={clsx(
+                        "w-5 h-5 flex-shrink-0",
+                        selectedSessionId === sessionKey
+                          ? "text-white"
+                          : "text-[var(--accent-provana)]"
+                      )}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate font-medium">
+                        {session.title ||
+                          session.firstMessage ||
+                          "Untitled Chat"}
                       </div>
-                    )}
-                  </div>
-                </li>
-              ))
+                      {session.createdAt && (
+                        <div className="text-xs text-gray-400">
+                          {new Date(session.createdAt).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })
             )}
           </ul>
         )}
