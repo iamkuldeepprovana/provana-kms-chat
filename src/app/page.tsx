@@ -144,7 +144,11 @@ export default function Home() {
       setThinking(null);
       setTyping(false);
       setClarification(data.content || null);
-      setIsProcessing(true);
+      setIsProcessing(false); // Allow input when clarification is needed
+      setMessages((msgs) => [
+        ...msgs,
+        { type: "bot", content: data.content || "" },
+      ]);
     } else if (data.type === "end_of_answer") {
       setThinking(null);
       setTyping(false);
@@ -365,61 +369,37 @@ export default function Home() {
               <span>●</span><span>●</span><span>●</span>
             </div>
           )}
-          {clarification && (
-            <div className="p-5 my-4 rounded-xl max-w-lg mx-auto bg-[var(--background-light)] border border-[var(--accent-provana)] text-[var(--text-primary)] shadow-lg message-enter-active">
-              <p className="font-semibold text-white mb-3">Clarification Needed</p>
-              <p className="mb-4 text-[var(--text-secondary)]">{clarification}</p>
-              <input
-                type="text"
-                className="w-full p-3 bg-gray-800 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent-provana)]"
-                placeholder="Your response..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) sendClarification();
-                }}
-                autoFocus
-              />
-              <button
-                type="button"
-                className="mt-4 w-full px-6 py-2 bg-[var(--accent-provana)] text-white rounded-lg hover:bg-[var(--accent-provana-hover)] transition"
-                onClick={sendClarification}
-              >
-                Submit
-              </button>
-            </div>
-          )}
         </div>
       </div>
       {/* Input Area */}
-      {!clarification && (
-        <div className="p-4 border-t border-[var(--border-color)]">
-          <div className="flex items-center space-x-3 max-w-4xl mx-auto">
-            <input
-              type="text"
-              className="flex-1 p-4 bg-[var(--background-light)] border border-[var(--border-color)] rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--accent-provana)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] transition-all duration-200"
-              placeholder="Ask a question..."
-              autoComplete="off"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) sendMessage();
-              }}
-              disabled={isProcessing}
-            />
-            <button
-              className="p-3 bg-[var(--accent-provana)] text-white rounded-full hover:bg-[var(--accent-provana-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-provana)] focus:ring-offset-2 focus:ring-offset-[var(--background-dark)] disabled:bg-gray-600 disabled:cursor-not-allowed transition-all transform active:scale-90"
-              type="button"
-              onClick={sendMessage}
-              disabled={isProcessing}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-              </svg>
-            </button>
-          </div>
+      <div className="p-4 border-t border-[var(--border-color)]">
+        <div className="flex items-center space-x-3 max-w-4xl mx-auto">
+          <input
+            type="text"
+            className="flex-1 p-4 bg-[var(--background-light)] border border-[var(--border-color)] rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--accent-provana)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] transition-all duration-200"
+            placeholder={clarification ? "Please clarify..." : "Ask a question..."}
+            autoComplete="off"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                clarification ? sendClarification() : sendMessage();
+              }
+            }}
+            disabled={isProcessing}
+          />
+          <button
+            className="p-3 bg-[var(--accent-provana)] text-white rounded-full hover:bg-[var(--accent-provana-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-provana)] focus:ring-offset-2 focus:ring-offset-[var(--background-dark)] disabled:bg-gray-600 disabled:cursor-not-allowed transition-all transform active:scale-90"
+            type="button"
+            onClick={clarification ? sendClarification : sendMessage}
+            disabled={isProcessing}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+            </svg>
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
