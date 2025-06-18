@@ -111,7 +111,7 @@ export default function Home() {
       if (ws) {
         ws.close(1000, "Page unloaded");
       }
-    };
+    };  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   type MessageData = {
     session_id: string;
@@ -380,10 +380,13 @@ export default function Home() {
             placeholder={clarification ? "Please clarify..." : "Ask a question..."}
             autoComplete="off"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
+            onChange={(e) => setInput(e.target.value)}            onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
-                clarification ? sendClarification() : sendMessage();
+                if (clarification) {
+                  sendClarification();
+                } else {
+                  sendMessage();
+                }
               }
             }}
             disabled={isProcessing}
