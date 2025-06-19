@@ -152,7 +152,7 @@ export default function Home() {
         }
       };
       ws.onerror = (event) => {
-        console.error("WebSocket error", event);
+        // console.error("WebSocket error", event);
         setIsProcessing(false);
       };
     }
@@ -162,7 +162,7 @@ export default function Home() {
       if (ws) {
         ws.close(1000, "Page unloaded");
       }
-    };
+    };  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   type MessageData = {
     session_id: string;
@@ -177,11 +177,13 @@ export default function Home() {
   };
   function handleMessage(data: MessageData) {
     // Store AI answer immediately when received
+    console.log("Received message data:", data);
     if (data.type === "answer") {
       console.log("Received full answer:", data.content);
       // Use sessionIdRef.current if sessionId is not set
       const sid = sessionId || sessionIdRef.current;
-      const user = currentUser || username;
+      // Fallback for user: currentUser, localStorage, or username
+      const user = currentUser || (typeof window !== "undefined" ? localStorage.getItem("username") : "") || username;
       console.log(user, sid, data.content);
       if (sid && user && data.content) {
         appendMessage(sid, user, {
@@ -219,7 +221,11 @@ export default function Home() {
       setThinking(null);
       setTyping(false);
       setClarification(data.content || null);
-      setIsProcessing(true);
+      setIsProcessing(false); // Allow input when clarification is needed
+      setMessages((msgs) => [
+        ...msgs,
+        { type: "bot", content: data.content || "" },
+      ]);
     } else if (data.type === "end_of_answer") {
       setThinking(null);
       setTyping(false);
@@ -305,10 +311,17 @@ export default function Home() {
 
   // --- Main Chat logic integration ---
   // Replace userId with username from localStorage
-  const [currentUser, setCurrentUser] = useState<string>("");
+  const [currentUser, setCurrentUser] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("username") || "";
+    }
+    return "";
+  });
   useEffect(() => {
-    const storedUsername = localStorage.getItem("username");
-    if (storedUsername) setCurrentUser(storedUsername);
+    if (typeof window !== "undefined") {
+      const storedUsername = localStorage.getItem("username");
+      if (storedUsername) setCurrentUser(storedUsername);
+    }
   }, []);
   // --- Chat session state ---
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
@@ -369,8 +382,11 @@ export default function Home() {
 
   // Store the current chat state in MongoDB after each message exchange
   function storeCompleteChatToMongoDB() {
-    if (!sessionId || !currentUser) {
-      console.warn("Cannot store chat: Missing sessionId or user");
+    // Fallback for user: currentUser, localStorage, or username
+    const user = currentUser || (typeof window !== "undefined" ? localStorage.getItem("username") : "") || username;
+    if (!sessionId || !user) {
+      // Only warn if actually not saving
+      // console.warn("Cannot store chat: Missing sessionId or user");
       return;
     }
 
@@ -383,7 +399,7 @@ export default function Home() {
       }));
 
     // Update the entire session with all messages
-    fetch(`/api/chat?user=${currentUser}&sessionId=${sessionId}`, {
+    fetch(`/api/chat?user=${user}&sessionId=${sessionId}`, {
       method: "GET",
     })
       .then((res) => res.json())
@@ -446,6 +462,44 @@ export default function Home() {
     setIsProcessing(true);
   }
 
+  // Function to load a chat session
+  const loadSession = async (sessionId: string) => {
+    if (!sessionId) return;
+    
+    setIsProcessing(true);
+    try {
+      // Clear current messages
+      setMessages([]);
+      
+      // Fetch the session from the API
+      const response = await fetch(`/api/chat?user=${username}&sessionId=${sessionId}`);
+      if (!response.ok) throw new Error('Failed to fetch session');
+      
+      const session = await response.json();
+      
+      // Convert MongoDB format to UI format
+      const uiMessages = session.messages.map((msg: any) => ({
+        type: msg.role === 'ai' ? 'bot' : 'user',
+        content: msg.content
+      }));
+      
+      // Update the UI
+      setMessages(uiMessages);
+      sessionIdRef.current = sessionId;
+      
+    } catch (error) {
+      console.error('Error loading session:', error);
+      // Add error message
+      setMessages([{
+        type: 'system',
+        content: 'Failed to load chat history.',
+        className: 'text-red-500'
+      }]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Cleans markdown links by encoding spaces as %20 in URLs
   function cleanMarkdownLinks(markdown: string): string {
     return markdown.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
@@ -476,34 +530,50 @@ export default function Home() {
     console.log("aiResponseRef.current:", aiResponseRef.current);
   }
 
+  // Logout function
+  function handleLogout() {
+    // Remove the auth cookie
+    document.cookie = "isLoggedIn=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+    // Clear localStorage if you're storing anything there
+    localStorage.removeItem("username");
+    localStorage.removeItem("chatSessionId");
+    // Redirect to login page
+    router.replace("/login");
+  }
+
   return (
     <div className="h-screen flex flex-row">
+      {/* Chat Sidebar */}
+      <ChatSidebar
+        user={username}
+        selectedSessionId={selectedSessionId}
+        onSelectSession={(sessionId) => {
+          setSelectedSessionId(sessionId);
+          // Load the selected session
+          loadSession(sessionId);
+        }}
+        onNewChat={handleNewChat}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      {/* Toggle Sidebar Button (only when sidebar is closed) */}
       {!sidebarOpen && (
         <button
           className="fixed top-4 left-4 z-50 p-2 rounded-full bg-[var(--background-dark)] text-[var(--accent-provana)] shadow-lg hover:bg-[var(--background-light)] transition"
           onClick={() => setSidebarOpen(true)}
           aria-label="Open Sidebar"
         >
-          <Menu className="w-6 h-6" />
+          <Menu size={20} />
         </button>
       )}
-      <ChatSidebar
-        user={currentUser}
-        selectedSessionId={selectedSessionId}
-        onSelectSession={setSelectedSessionId}
-        onNewChat={handleNewChat}
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
-      <div className="flex-1 flex flex-col">
-        {/* Header */}{" "}
-        <header className="p-2 border-b border-[var(--border-color)]">
+
+      <div className="h-screen flex flex-col flex-1 overflow-hidden">
+        {/* Header */}        <header className="p-2 border-b border-[var(--border-color)]">
           <div className="max-w-4xl mx-auto flex justify-between items-center">
             <div>
               <h1 className="text-lg font-bold text-white">Provana KMS</h1>
-              <p className="text-xs text-[var(--text-secondary)]">
-                Your Knowledge Management Solution
-              </p>
+              <p className="text-xs text-[var(--text-secondary)]">Your Knowledge Management Solution</p>
             </div>
             <div className="flex space-x-2">
               <button
@@ -513,11 +583,7 @@ export default function Home() {
                 New Chat
               </button>
               <button
-                onClick={() => {
-                  document.cookie =
-                    "isLoggedIn=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-                  router.replace("/login");
-                }}
+                onClick={handleLogout}
                 className="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition text-sm"
               >
                 Logout
@@ -525,26 +591,12 @@ export default function Home() {
             </div>
           </div>
         </header>
-        {/* Welcome Back Card only when connected, with reduced spacing */}
-        {/* Moved into chat container below */}
         {/* Chat Container */}
         {connectionStatus === "reconnecting" && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
             <div className="flex flex-col items-center p-8 bg-white rounded-xl shadow-lg">
-              <div
-                className="loader mb-4"
-                style={{
-                  width: 40,
-                  height: 40,
-                  border: "4px solid #ccc",
-                  borderTop: "4px solid #0070f3",
-                  borderRadius: "50%",
-                  animation: "spin 1s linear infinite",
-                }}
-              />
-              <span className="text-lg font-semibold text-gray-700">
-                Attempting to reconnect...
-              </span>
+              <div className="loader mb-4" style={{ width: 40, height: 40, border: '4px solid #ccc', borderTop: '4px solid #0070f3', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+              <span className="text-lg font-semibold text-gray-700">Attempting to reconnect...</span>
             </div>
           </div>
         )}
@@ -554,15 +606,12 @@ export default function Home() {
           className="flex-1 p-6 overflow-y-auto"
         >
           <div className="max-w-4xl mx-auto space-y-6">
+            {/* Welcome Back Card only when connected, with reduced spacing */}
+            {/* (Moved inside chat container) */}
             {username && connectionStatus === "connected" && (
-              <div className="flex justify-center items-start pt-4 pb-2">
-                <div className="dashboard-welcome-card">
-                  <h2>
-                    👋 Welcome Back{" "}
-                    <span className="highlight">{username}</span>
-                  </h2>
-                  <p>Ready to start your conversation?</p>
-                </div>
+              <div className="dashboard-welcome-card my-2 mx-auto">
+                <h2>👋 Welcome Back <span className="highlight">{username}</span></h2>
+                <p>Ready to start your conversation?</p>
               </div>
             )}
             {messages.length === 0 && (
@@ -581,72 +630,45 @@ export default function Home() {
                   </div>
                 );
               } else if (msg.type === "bot") {
+                // Show typewriter effect for the latest bot message only
                 const isLatestBot =
                   i === messages.length - 1 &&
                   messages.filter((m) => m.type === "bot").length > 0;
                 if (isLatestBot) {
                   return (
                     <div
-                      key={`bot-${i}`}
+                      key={i}
                       className="p-4 my-2 rounded-xl max-w-lg break-words mr-auto bg-[var(--background-light)] border border-[var(--border-color)] text-[var(--text-primary)] message-enter-active bot-message-content"
                     >
-                      <Typewriter
-                        text={cleanMarkdownLinks(msg.content)}
-                        speed={20}
-                      />
+                      <Typewriter text={cleanMarkdownLinks(msg.content)} speed={20} />
                     </div>
                   );
                 } else {
                   return (
-                    <div
-                      key={`bot-${i}`}
+                    <div                    key={i}
                       className="p-4 my-2 rounded-xl max-w-lg break-words mr-auto bg-[var(--background-light)] border border-[var(--border-color)] text-[var(--text-primary)] message-enter-active bot-message-content"
-                      dangerouslySetInnerHTML={{
-                        __html: marked.parse(
-                          cleanMarkdownLinks(msg.content || "")
-                        ),
-                      }}
+                      dangerouslySetInnerHTML={{ __html: marked.parse(cleanMarkdownLinks(msg.content)) }}
                     />
                   );
                 }
               } else {
                 // System messages (e.g., connection lost, connected)
-                const isReconnecting =
-                  connectionStatus === "reconnecting" &&
-                  msg.content.includes("Connection lost");
-                const isConnected =
-                  connectionStatus === "connected" &&
-                  msg.content.includes("Connected to Provana KMS");
-                if (!isReconnecting && !isConnected && !msg.content)
-                  return null;
+                const isReconnecting = connectionStatus === "reconnecting" && msg.content.includes("Connection lost");
+                const isConnected = connectionStatus === "connected" && msg.content.includes("Connected to Provana KMS");
+                if (!isReconnecting && !isConnected) return null;
                 return (
                   <div
                     key={i}
-                    className={`text-center my-3 text-sm italic ${
-                      msg.className || ""
-                    } message-enter-active`}
+                    className={`text-center my-3 text-sm italic ${msg.className || ""} message-enter-active`}
                   >
                     {isReconnecting && (
                       <span className="inline-block align-middle mr-2">
-                        <span
-                          className="loader"
-                          style={{
-                            display: "inline-block",
-                            width: 18,
-                            height: 18,
-                            border: "3px solid #ccc",
-                            borderTop: "3px solid #0070f3",
-                            borderRadius: "50%",
-                            animation: "spin 1s linear infinite",
-                          }}
-                        />
+                        <span className="loader" style={{ display: 'inline-block', width: 18, height: 18, border: '3px solid #ccc', borderTop: '3px solid #0070f3', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                       </span>
                     )}
                     {msg.content}
                     {isConnected && (
-                      <span className="inline-block align-middle ml-2 text-green-500 font-bold">
-                        ●
-                      </span>
+                      <span className="inline-block align-middle ml-2 text-green-500 font-bold">●</span>
                     )}
                   </div>
                 );
@@ -654,83 +676,50 @@ export default function Home() {
             })}
             {thinking && (
               <div className="p-3 my-2 rounded-lg max-w-md break-words mr-auto text-[var(--text-secondary)] message-enter-active thinking-message">
-                <span className="font-semibold text-[var(--accent-provana)] mr-2">
-                  ●
-                </span>
+                <span className="font-semibold text-[var(--accent-provana)] mr-2">●</span>
                 {thinking}
               </div>
             )}
             {typing && (
               <div className="p-4 my-2 rounded-xl max-w-xs mr-auto bg-[var(--background-light)] text-[var(--text-primary)] message-enter-active typing-indicator">
-                <span>●</span>
-                <span>●</span>
-                <span>●</span>
-              </div>
-            )}
-            {clarification && (
-              <div className="p-5 my-4 rounded-xl max-w-lg mx-auto bg-[var(--background-light)] border border-[var(--accent-provana)] text-[var(--text-primary)] shadow-lg message-enter-active">
-                <p className="font-semibold text-white mb-3">
-                  Clarification Needed
-                </p>
-                <p className="mb-4 text-[var(--text-secondary)]">
-                  {clarification}
-                </p>
-                <input
-                  type="text"
-                  className="w-full p-3 bg-gray-800 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent-provana)]"
-                  placeholder="Your response..."
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) sendClarification();
-                  }}
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  className="mt-4 w-full px-6 py-2 bg-[var(--accent-provana)] text-white rounded-lg hover:bg-[var(--accent-provana-hover)] transition"
-                  onClick={sendClarification}
-                >
-                  Submit
-                </button>
+                <span>●</span><span>●</span><span>●</span>
               </div>
             )}
           </div>
         </div>
         {/* Input Area */}
-        {!clarification && (
-          <div className="p-4 border-t border-[var(--border-color)]">
-            <div className="flex items-center space-x-3 max-w-4xl mx-auto">
-              <input
-                type="text"
-                className="flex-1 p-4 bg-[var(--background-light)] border border-[var(--border-color)] rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--accent-provana)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] transition-all duration-200"
-                placeholder="Ask a question..."
-                autoComplete="off"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) handleSendMessage();
-                }}
-                disabled={isProcessing}
-              />
-              <button
-                className="p-3 bg-[var(--accent-provana)] text-white rounded-full hover:bg-[var(--accent-provana-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-provana)] focus:ring-offset-2 focus:ring-offset-[var(--background-dark)] disabled:bg-gray-600 disabled:cursor-not-allowed transition-all transform active:scale-90"
-                type="button"
-                onClick={handleSendMessage}
-                disabled={isProcessing}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-                </svg>
-              </button>
-            </div>
+        <div className="p-4 border-t border-[var(--border-color)]">
+          <div className="flex items-center space-x-3 max-w-4xl mx-auto">
+            <input
+              type="text"
+              className="flex-1 p-4 bg-[var(--background-light)] border border-[var(--border-color)] rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--accent-provana)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] transition-all duration-200"
+              placeholder={clarification ? "Please clarify..." : "Ask a question..."}
+              autoComplete="off"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  if (clarification) {
+                    sendClarification();
+                  } else {
+                    handleSendMessage();
+                  }
+                }
+              }}
+              disabled={isProcessing}
+            />
+            <button
+              className="p-3 bg-[var(--accent-provana)] text-white rounded-full hover:bg-[var(--accent-provana-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-provana)] focus:ring-offset-2 focus:ring-offset-[var(--background-dark)] disabled:bg-gray-600 disabled:cursor-not-allowed transition-all transform active:scale-90"
+              type="button"
+              onClick={clarification ? sendClarification : handleSendMessage}
+              disabled={isProcessing}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+              </svg>
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

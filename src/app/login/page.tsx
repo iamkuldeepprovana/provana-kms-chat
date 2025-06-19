@@ -7,7 +7,7 @@ const USERS = [
   { username: "Gurstel", password: "Gurstel123" },
   { username: "Weltman", password: "Weltman123" },
   { username: "Smith", password: "smith123" },
-  { username: "Pessler", password: "pessler123" },
+  { username: "Pressler", password: "pressler123" },
 ];
 
 export default function Login() {
